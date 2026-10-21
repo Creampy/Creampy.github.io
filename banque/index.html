@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retour vers Mes Dépenses</title><link rel="stylesheet" href="../style.css">
+<script>location.replace("mesdepenses://banque" + location.search);</script></head>
+<body><main>
+<h1>Retour vers Mes Dépenses…</h1>
+<p>Si l'application ne s'ouvre pas, <a id="open" href="mesdepenses://banque">touche ici</a>.</p>
+<script>document.getElementById("open").href = "mesdepenses://banque" + location.search;</script>
+</main></body>
+</html>
