@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "fr.mesdepenses",
+    "sha256_cert_fingerprints": ["B5:94:17:CC:60:D6:B3:33:ED:48:7D:C7:E1:4B:93:F5:AD:3E:F5:2F:AB:F7:96:D6:46:AA:C6:72:AA:4E:5A:51"]
+  }
+}]
