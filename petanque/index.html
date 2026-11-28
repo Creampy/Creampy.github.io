@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1f5c3d">
-<title>Mon Tournoi</title>
+<title>Ma Pétanque</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -131,6 +131,7 @@
   .mt { margin: 0 0 0.4rem; font-weight: 700; color: var(--muted); font-size: 0.95rem; }
   .match.done .mt { color: var(--pri); }
   .side { display: flex; flex-direction: column; gap: 0.35rem; }
+  .shead { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
   .sname { font-weight: 700; font-size: 1.15rem; overflow-wrap: anywhere; }
   .stepper { display: grid; grid-template-columns: 3.4rem 1fr 3.4rem; gap: 0.5rem; }
   .stp { min-height: 3.4rem; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); font-size: 1.8rem; font-weight: 700; line-height: 1; }
@@ -191,7 +192,7 @@
 <body>
 <main>
   <header class="top">
-    <div class="brand"><span aria-hidden="true">🏆</span><h1>Mon Tournoi</h1></div>
+    <div class="brand"><span aria-hidden="true">🏆</span><h1>Ma Pétanque</h1></div>
     <div class="textsize" role="group" aria-label="Taille du texte">
       <span aria-hidden="true">Texte</span>
       <button type="button" data-size="1" aria-label="Texte normal">A</button>
@@ -207,7 +208,7 @@
 <script>
 (function () {
   "use strict";
-  var KEY = "tournoi.v1", PREF = "tournoi.texte";
+  var KEY = "petanque.v1", PREF = "petanque.texte";
 
   // ---------- Stockage ----------
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } }
@@ -225,7 +226,7 @@
   function signed(n) { return n > 0 ? "+" + n : String(n); }
   function isDuo() { return S.mode === "duo"; }
   function isChamp() { return S.format === "championnat"; }
-  function modeLabel() { return isDuo() ? "Équipes de 2" : "Chacun pour soi"; }
+  function modeLabel() { return isDuo() ? "Doublettes" : "Tête-à-tête"; }
   function formatLabel() { return isChamp() ? "Championnat" : "Tournoi à élimination"; }
   function playerName(id) { for (var i = 0; i < S.players.length; i++) if (S.players[i].id === id) return S.players[i].name; return "?"; }
   function entrants() {
@@ -317,22 +318,22 @@
       if (!m.done) return;
       var A = t[m.a], B = t[m.b]; if (!A || !B) return;
       A.J++; B.J++; A.pour += m.sa; A.contre += m.sb; B.pour += m.sb; B.contre += m.sa;
-      if (m.sa > m.sb) { A.V++; B.D++; } else if (m.sa < m.sb) { B.V++; A.D++; } else { A.N++; B.N++; }
+      if (m.sa > m.sb) { A.V++; B.D++; } else if (m.sa < m.sb) { B.V++; A.D++; }
     });
-    rows.forEach(function (r) { r.pts = 3 * r.V + r.N; r.diff = r.pour - r.contre; });
-    rows.sort(function (x, y) { return y.pts - x.pts || y.diff - x.diff || y.pour - x.pour || x.name.localeCompare(y.name, "fr"); });
+    // Barème habituel en pétanque : parties gagnées, puis goal-average, puis points marqués.
+    rows.forEach(function (r) { r.diff = r.pour - r.contre; });
+    rows.sort(function (x, y) { return y.V - x.V || y.diff - x.diff || y.pour - x.pour || x.name.localeCompare(y.name, "fr"); });
     rows.forEach(function (r, i) {
       var p = rows[i - 1];
-      r.rank = (p && p.pts === r.pts && p.diff === r.diff && p.pour === r.pour) ? p.rank : i + 1;
+      r.rank = (p && p.V === r.V && p.diff === r.diff && p.pour === r.pour) ? p.rank : i + 1;
     });
     return rows;
   }
 
-  function championText() {
+  function champion() {
     if (!S.rounds.length || !isFinished()) return null;
-    if (!isChamp()) return nameOf(winner(S.rounds[S.rounds.length - 1][0]));
-    var top = standings().filter(function (r) { return r.rank === 1; });
-    return top.map(function (r) { return r.name; }).join(" et ");
+    if (!isChamp()) return { names: [nameOf(winner(S.rounds[S.rounds.length - 1][0]))] };
+    return { names: standings().filter(function (r) { return r.rank === 1; }).map(function (r) { return r.name; }) };
   }
 
   // ---------- Vues ----------
@@ -341,7 +342,7 @@
   function vHome() {
     if (S && S.stage) {
       var n = S.stage === "play" ? entrants().length : S.players.length;
-      var what = S.stage === "play" && isDuo() ? pl(n, "équipe", "équipes") : pl(n, "joueur", "joueurs");
+      var what = S.stage === "play" && isDuo() ? pl(n, "doublette", "doublettes") : pl(n, "joueur", "joueurs");
       return '<section class="card"><h2>Tournoi en cours</h2>' +
         '<p class="big">' + esc(S.name || "Mon tournoi") + '</p>' +
         '<p class="muted">' + modeLabel() + " · " + formatLabel() + " · " + what + '</p>' +
@@ -349,8 +350,8 @@
         '<button class="btn ghost" data-act="new">Commencer un nouveau tournoi</button>';
     }
     return '<section class="card"><h2>Bienvenue</h2>' +
-      '<p>Cette application vous aide à organiser un tournoi ou un championnat : inscription des joueurs, tirage au sort, matchs et classement.</p>' +
-      '<p>On joue seul ou par équipes de 2. Tout se fait en quelques étapes simples.</p>' +
+      '<p>Cette application vous aide à organiser un tournoi ou un championnat de pétanque : inscription des joueurs, tirage au sort, parties et classement.</p>' +
+      '<p>On joue en tête-à-tête ou en doublettes. Tout se fait en quelques étapes simples.</p>' +
       '<button class="btn pri" data-act="new">Créer un tournoi</button></section>';
   }
 
@@ -364,12 +365,16 @@
       '<label class="lbl" for="tname">Nom du tournoi</label>' +
       '<input id="tname" class="field" value="' + esc(S.name) + '" placeholder="Par exemple : Concours du club" autocomplete="off">' +
       '<fieldset><legend class="lbl">Comment joue-t-on ?</legend><div class="choices">' +
-      choice("mode", "solo", S.mode, "Chacun pour soi", "Chaque joueur joue seul.") +
-      choice("mode", "duo", S.mode, "Par équipes de 2", "Les joueurs sont associés deux par deux.") +
+      choice("mode", "solo", S.mode, "Tête-à-tête", "Chaque joueur joue seul, un contre un.") +
+      choice("mode", "duo", S.mode, "Doublettes", "Équipes de 2 joueurs, deux contre deux.") +
       '</div></fieldset>' +
       '<fieldset><legend class="lbl">Quelle formule ?</legend><div class="choices">' +
       choice("format", "championnat", S.format, "Championnat", "Tout le monde rencontre tout le monde. Le classement désigne le gagnant.") +
-      choice("format", "tournoi", S.format, "Tournoi à élimination", "Le gagnant de chaque match continue, le perdant est éliminé, jusqu'à la finale.") +
+      choice("format", "tournoi", S.format, "Tournoi à élimination", "Le gagnant de chaque partie continue, le perdant est éliminé, jusqu'à la finale.") +
+      '</div></fieldset>' +
+      '<fieldset><legend class="lbl">Les parties se jouent en</legend><div class="choices">' +
+      choice("target", "13", String(S.target), "13 points", "La règle habituelle.") +
+      choice("target", "11", String(S.target), "11 points", "Pour des parties plus courtes.") +
       '</div></fieldset>' +
       '<div class="nav"><button class="btn ghost" data-act="home">◀ Retour</button><button class="btn pri" data-act="toPlayers">Continuer ▶</button></div>';
   }
@@ -377,8 +382,8 @@
   function playersProblem() {
     var n = S.players.length;
     if (isDuo()) {
-      if (n < 4) return "Il faut au moins 4 joueurs pour former 2 équipes.";
-      if (n % 2) return "Il faut un nombre pair de joueurs pour former des équipes de 2. Ajoutez ou retirez un joueur.";
+      if (n < 4) return "Il faut au moins 4 joueurs pour former 2 doublettes.";
+      if (n % 2) return "Il faut un nombre pair de joueurs pour former des doublettes. Ajoutez ou retirez un joueur.";
     } else if (n < 2) return "Il faut au moins 2 joueurs.";
     return null;
   }
@@ -386,7 +391,7 @@
   function vPlayers() {
     var n = S.players.length, pb = playersProblem();
     return '<p class="step">Étape 2 sur ' + steps() + '</p><h2>Les joueurs</h2>' +
-      '<p>' + (isDuo() ? "Inscrivez tous les joueurs, un par un. Les équipes de 2 seront formées à l'étape suivante." : "Inscrivez les joueurs, un par un.") + '</p>' +
+      '<p>' + (isDuo() ? "Inscrivez tous les joueurs, un par un. Les doublettes seront formées à l'étape suivante." : "Inscrivez les joueurs, un par un.") + '</p>' +
       '<form data-form="addPlayer"><label class="lbl" for="pname">Nom du joueur</label>' +
       '<div class="row"><input id="pname" class="field" autocomplete="off" autocapitalize="words" enterkeyhint="done">' +
       '<button class="btn pri" type="submit">Ajouter</button></div></form>' +
@@ -399,11 +404,11 @@
   }
 
   function vTeams() {
-    return '<p class="step">Étape 3 sur 3</p><h2>Les équipes</h2>' +
-      '<p>Les équipes ont été tirées au sort.</p>' +
+    return '<p class="step">Étape 3 sur 3</p><h2>Les doublettes</h2>' +
+      '<p>Les doublettes ont été tirées au sort.</p>' +
       '<p class="muted">Pour échanger deux joueurs, touchez le premier nom, puis le second.</p>' +
       '<ol class="teams">' + S.teams.map(function (t, i) {
-        return '<li class="card"><p class="tlabel">Équipe ' + (i + 1) + '</p><div class="pair">' + t.members.map(function (pid) {
+        return '<li class="card"><p class="tlabel">Doublette ' + (i + 1) + '</p><div class="pair">' + t.members.map(function (pid) {
           return '<button type="button" class="pbtn" data-act="swap" data-id="' + pid + '" aria-pressed="' + (swapSel === pid) + '">' + esc(playerName(pid)) + '</button>';
         }).join('<span class="amp">et</span>') + '</div></li>';
       }).join("") + '</ol>' +
@@ -413,7 +418,8 @@
 
   function stepper(m, s) {
     var nm = nameOf(m[s]), v = s === "a" ? m.sa : m.sb, id = "s-" + m.id + "-" + s;
-    return '<div class="side"><label class="sname" for="' + id + '">' + esc(nm) + '</label><div class="stepper">' +
+    return '<div class="side"><div class="shead"><label class="sname" for="' + id + '">' + esc(nm) + '</label>' +
+      '<button type="button" class="btn small ghost" data-act="max" data-id="' + m.id + '" data-s="' + s + '" aria-label="' + S.target + ' points pour ' + esc(nm) + '">' + S.target + ' pts</button></div><div class="stepper">' +
       '<button type="button" class="stp" data-act="dec" data-id="' + m.id + '" data-s="' + s + '" aria-label="Enlever un point à ' + esc(nm) + '">−</button>' +
       '<input id="' + id + '" class="score" type="number" min="0" inputmode="numeric" pattern="[0-9]*" value="' + v + '" data-score data-id="' + m.id + '" data-s="' + s + '">' +
       '<button type="button" class="stp" data-act="inc" data-id="' + m.id + '" data-s="' + s + '" aria-label="Ajouter un point à ' + esc(nm) + '">+</button>' +
@@ -423,10 +429,10 @@
   function matchCard(m, i) {
     if (m.bye) {
       return '<div class="match"><p>' + (isChamp()
-        ? "<strong>" + esc(nameOf(m.a)) + "</strong> ne joue pas ce tour (nombre impair)."
+        ? "Exempt ce tour (nombre impair) : <strong>" + esc(nameOf(m.a)) + "</strong> ne joue pas."
         : "<strong>" + esc(nameOf(m.a)) + "</strong> passe directement au tour suivant (pas d'adversaire).") + '</p></div>';
     }
-    var title = "Match " + (i + 1);
+    var title = "Partie " + (i + 1);
     if (!playable(m)) {
       return '<div class="match"><p class="mt">' + title + '</p><p>' + esc(nameOf(m.a)) + ' <em class="muted">contre</em> ' + esc(nameOf(m.b)) + '</p>' +
         '<p class="muted">En attente des résultats du tour précédent.</p></div>';
@@ -436,7 +442,6 @@
       return '<div class="match done"><p class="mt">' + title + ' · ✓ Terminé</p><div class="res">' +
         '<div class="rrow' + (w === m.a ? " win" : "") + '"><span>' + esc(nameOf(m.a)) + '</span><span class="sc">' + m.sa + '</span></div>' +
         '<div class="rrow' + (w === m.b ? " win" : "") + '"><span>' + esc(nameOf(m.b)) + '</span><span class="sc">' + m.sb + '</span></div></div>' +
-        (w === null ? '<p class="muted">Match nul.</p>' : "") +
         '<div class="actions"><button class="btn small ghost" data-act="edit" data-id="' + m.id + '">Modifier le résultat</button></div></div>';
     }
     return '<div class="match"><p class="mt">' + title + ' · Entrez les points</p>' + stepper(m, "a") + '<p class="vs">contre</p>' + stepper(m, "b") +
@@ -454,7 +459,7 @@
       (r < R.length - 1 ? '<button class="btn ghost" data-act="round" data-v="' + (r + 1) + '">Tour suivant ▶</button>' : "") +
       '</div>' +
       '<h3 class="rtitle">' + roundName(r) + '</h3>' +
-      '<p class="rsub muted">Tour ' + (r + 1) + " sur " + R.length + " · " + played + " " + (played > 1 ? "matchs joués" : "match joué") + " sur " + total + '</p>';
+      '<p class="rsub muted">Tour ' + (r + 1) + " sur " + R.length + " · " + played + " " + (played > 1 ? "parties jouées" : "partie jouée") + " sur " + total + '</p>';
     var n = 0;
     var shown = ms.filter(function (m) { return !m.bye; }).concat(ms.filter(function (m) { return m.bye; }));
     h += shown.map(function (m) { return matchCard(m, m.bye ? -1 : n++); }).join("");
@@ -468,13 +473,13 @@
 
   function vStandings() {
     var rows = standings(), played = allMatches().filter(function (m) { return m.done; }).length;
-    return '<p class="muted">Victoire = 3 points · Match nul = 1 point · Défaite = 0 point. En cas d\'égalité, on compare la différence (points marqués moins points encaissés).</p>' +
+    return '<p class="muted">Classement : d\'abord le nombre de parties gagnées. En cas d\'égalité, le goal-average (points marqués moins points encaissés), puis le nombre de points marqués.</p>' +
       '<ol class="stand">' + rows.map(function (r) {
         return '<li class="srow' + (r.rank === 1 && played ? " first" : "") + '"><span class="rank" aria-label="Rang ' + r.rank + '">' + r.rank + '</span>' +
-          '<div class="sbody"><p class="sn">' + esc(r.name) + '</p><p class="sdet">' + pl(r.V, "victoire", "victoires") + " · " + pl(r.N, "nul", "nuls") + " · " + pl(r.D, "défaite", "défaites") + " · différence " + signed(r.diff) + '</p></div>' +
-          '<span class="pts"><strong>' + r.pts + '</strong><small>' + (r.pts > 1 ? "points" : "point") + '</small></span></li>';
+          '<div class="sbody"><p class="sn">' + esc(r.name) + '</p><p class="sdet">' + pl(r.D, "partie perdue", "parties perdues") + " · goal‑average " + signed(r.diff) + " · " + pl(r.pour, "point marqué", "points marqués") + '</p></div>' +
+          '<span class="pts"><strong>' + r.V + '</strong><small>' + (r.V > 1 ? "gagnées" : "gagnée") + '</small></span></li>';
       }).join("") + '</ol>' +
-      '<p class="muted">' + played + " sur " + allMatches().length + " matchs joués.</p>";
+      '<p class="muted">' + played + " sur " + allMatches().length + " parties jouées.</p>";
   }
 
   function vBracket() {
@@ -491,11 +496,11 @@
   }
 
   function vPlay() {
-    var champ = championText();
-    return '<div class="phead"><h2>' + esc(S.name) + '</h2><p class="muted">' + modeLabel() + " · " + formatLabel() + '</p></div>' +
-      (champ ? '<div class="champion"><div class="cup" aria-hidden="true">🏆</div><p>' + (champ.indexOf(" et ") > -1 && !isDuo() ? "Égalité en tête !" : "Le tournoi est terminé ! Bravo à") + '</p><p class="who">' + esc(champ) + '</p></div>' : "") +
+    var champ = champion();
+    return '<div class="phead"><h2>' + esc(S.name) + '</h2><p class="muted">' + modeLabel() + " · " + formatLabel() + " · parties en " + S.target + ' points</p></div>' +
+      (champ ? '<div class="champion"><div class="cup" aria-hidden="true">🏆</div><p>' + (champ.names.length > 1 ? "Terminé ! Égalité parfaite en tête :" : "Terminé ! Bravo à") + '</p><p class="who">' + champ.names.map(esc).join("<br>") + '</p></div>' : "") +
       '<div class="tabs" role="tablist">' +
-      '<button role="tab" data-act="tab" data-v="matchs" aria-selected="' + (tab === "matchs") + '">Matchs</button>' +
+      '<button role="tab" data-act="tab" data-v="matchs" aria-selected="' + (tab === "matchs") + '">Parties</button>' +
       '<button role="tab" data-act="tab" data-v="classement" aria-selected="' + (tab === "classement") + '">' + (isChamp() ? "Classement" : "Tableau") + '</button></div>' +
       '<div role="tabpanel">' + (tab === "matchs" ? vMatches() : (isChamp() ? vStandings() : vBracket())) + '</div>' +
       '<div class="tools"><button class="btn ghost" data-act="print">🖨️ Imprimer</button>' +
@@ -527,12 +532,12 @@
   }
 
   function startPlay() {
-    if (!confirm("Une fois le tournoi commencé, on ne peut plus changer les joueurs ni les équipes. Commencer maintenant ?")) return;
+    if (!confirm("Une fois le tournoi commencé, on ne peut plus changer les joueurs ni les doublettes. Commencer maintenant ?")) return;
     var ids = entrants().map(function (e) { return e.id; });
     S.rounds = isChamp() ? roundRobin(shuffle(ids)) : bracket(ids);
     rebuild();
     S.stage = "play"; tab = "matchs"; viewRound = null; save();
-    say("C'est parti ! Entrez les points de chaque match.");
+    say("C'est parti ! Entrez les points de chaque partie.");
     go("play");
   }
 
@@ -546,13 +551,15 @@
   var actions = {
     new: function () {
       if (S && S.stage && !confirm("Le tournoi en cours sera effacé. Voulez-vous continuer ?")) return;
-      S = { name: "", mode: "solo", format: "championnat", players: [], teams: [], rounds: [], stage: "setup" };
+      S = { name: "", mode: "solo", format: "championnat", target: 13, players: [], teams: [], rounds: [], stage: "setup" };
       save(); go("setup"); focusSel = null;
     },
     resume: function () { go(S.stage); },
     home: function () { go("home"); },
     goto: function (b) { S.stage = b.dataset.v; save(); go(b.dataset.v); },
     mode: function (b) { S.mode = b.dataset.v; save(); focusSel = '[data-act="mode"][data-v="' + b.dataset.v + '"]'; render(); },
+    target: function (b) { S.target = parseInt(b.dataset.v, 10); save(); focusSel = '[data-act="target"][data-v="' + b.dataset.v + '"]'; render(); },
+    max: function (b) { var v = setScore(b.dataset.id, b.dataset.s, S.target); document.getElementById("s-" + b.dataset.id + "-" + b.dataset.s).value = v; },
     format: function (b) { S.format = b.dataset.v; save(); focusSel = '[data-act="format"][data-v="' + b.dataset.v + '"]'; render(); },
     toPlayers: function () {
       S.name = (S.name || "").trim() || "Mon tournoi"; S.stage = "players"; save(); go("players");
@@ -586,8 +593,9 @@
     dec: function (b) { var s = b.dataset.s, f = findMatch(b.dataset.id); var v = setScore(b.dataset.id, s, (s === "a" ? f.m.sa : f.m.sb) - 1); document.getElementById("s-" + b.dataset.id + "-" + s).value = v; },
     saveMatch: function (b) {
       var f = findMatch(b.dataset.id), m = f.m;
-      if (!isChamp() && m.sa === m.sb) { say("Il faut un gagnant : dans un tournoi à élimination, les deux scores ne peuvent pas être égaux.", true); render(); return; }
-      if (isChamp() && m.sa === 0 && m.sb === 0 && !confirm("Le score est de 0 à 0. Enregistrer un match nul ?")) return;
+      if (m.sa === m.sb) { say("Il faut un gagnant : à la pétanque, les deux scores ne peuvent pas être égaux.", true); render(); return; }
+      var hi = Math.max(m.sa, m.sb), lo = Math.min(m.sa, m.sb);
+      if ((hi !== S.target || lo >= S.target) && !confirm("Le score habituel est " + S.target + " à quelque chose. Ici c'est " + hi + " à " + lo + ". Enregistrer quand même ? (par exemple pour une partie limitée dans le temps)")) return;
       m.done = true; rebuild(); save();
       say(isFinished() ? "Dernier résultat enregistré. Le tournoi est terminé !" : "Résultat enregistré.");
       render();
