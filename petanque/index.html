@@ -174,6 +174,11 @@
   .blist .w { font-weight: 700; }
   .blist .w span:first-child::before { content: "✓ "; color: var(--pri); }
 
+  .dlg { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px max(16px, env(safe-area-inset-bottom)); background: rgba(0, 0, 0, 0.55); }
+  .dlg[hidden] { display: none; }
+  .dlg-box { width: 100%; max-width: 30rem; background: var(--card); color: var(--ink); border-radius: var(--r); padding: 1.2rem 1rem 1rem; border: 2px solid var(--line); }
+  .dlg-box p { margin: 0 0 0.6rem; font-size: 1.1rem; font-weight: 700; }
+  @media (min-width: 600px) { .dlg { align-items: center; } }
   #msg:empty { display: none; }
   #msg { position: sticky; top: 8px; z-index: 5; margin: 0 0 0.8rem; padding: 0.8rem 1rem; border-radius: var(--r); font-weight: 700; background: var(--pri-soft); border: 2px solid var(--pri); }
   #msg.warn { background: var(--warn-soft); border-color: var(--warn); color: var(--ink); }
@@ -202,6 +207,13 @@
   </header>
   <div id="msg" role="status" aria-live="polite"></div>
   <div id="app"></div>
+  <div id="dlg" class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-t" hidden>
+    <div class="dlg-box">
+      <p id="dlg-t"></p>
+      <button type="button" class="btn pri" id="dlg-ok">Oui</button>
+      <button type="button" class="btn ghost" id="dlg-no">Annuler</button>
+    </div>
+  </div>
   <p class="foot">Les informations restent sur cet appareil. Rien n'est envoyé sur Internet.</p>
 </main>
 
@@ -532,13 +544,14 @@
   }
 
   function startPlay() {
-    if (!confirm("Une fois le tournoi commencé, on ne peut plus changer les joueurs ni les doublettes. Commencer maintenant ?")) return;
+    ask("Une fois le tournoi commencé, on ne peut plus changer les joueurs ni les doublettes. Commencer maintenant ?", "Commencer le tournoi", function () {
     var ids = entrants().map(function (e) { return e.id; });
     S.rounds = isChamp() ? roundRobin(shuffle(ids)) : bracket(ids);
     rebuild();
     S.stage = "play"; tab = "matchs"; viewRound = null; save();
     say("C'est parti ! Entrez les points de chaque partie.");
     go("play");
+    });
   }
 
   function setScore(id, s, v) {
@@ -548,11 +561,26 @@
     return v;
   }
 
+  // Fenêtre de confirmation intégrée (plus lisible qu'une boîte du navigateur).
+  var dlg = document.getElementById("dlg"), dlgT = document.getElementById("dlg-t"),
+      dlgOk = document.getElementById("dlg-ok"), dlgNo = document.getElementById("dlg-no"), pending = null, lastFocus = null;
+  function ask(text, okLabel, cb) {
+    dlgT.textContent = text; dlgOk.textContent = okLabel; pending = cb;
+    lastFocus = document.activeElement; dlg.hidden = false; dlgOk.focus();
+  }
+  function closeDlg() { dlg.hidden = true; pending = null; if (lastFocus && document.contains(lastFocus)) lastFocus.focus(); }
+  dlgOk.addEventListener("click", function () { var cb = pending; closeDlg(); if (cb) cb(); });
+  dlgNo.addEventListener("click", closeDlg);
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) closeDlg(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !dlg.hidden) closeDlg(); });
+
   var actions = {
     new: function () {
-      if (S && S.stage && !confirm("Le tournoi en cours sera effacé. Voulez-vous continuer ?")) return;
-      S = { name: "", mode: "solo", format: "championnat", target: 13, players: [], teams: [], rounds: [], stage: "setup" };
-      save(); go("setup"); focusSel = null;
+      function doNew() {
+        S = { name: "", mode: "solo", format: "championnat", target: 13, players: [], teams: [], rounds: [], stage: "setup" };
+        save(); go("setup");
+      }
+      if (S && S.stage) ask("Le tournoi en cours sera effacé. Voulez-vous continuer ?", "Effacer et recommencer", doNew); else doNew();
     },
     resume: function () { go(S.stage); },
     home: function () { go("home"); },
@@ -595,25 +623,29 @@
       var f = findMatch(b.dataset.id), m = f.m;
       if (m.sa === m.sb) { say("Il faut un gagnant : à la pétanque, les deux scores ne peuvent pas être égaux.", true); render(); return; }
       var hi = Math.max(m.sa, m.sb), lo = Math.min(m.sa, m.sb);
-      if ((hi !== S.target || lo >= S.target) && !confirm("Le score habituel est " + S.target + " à quelque chose. Ici c'est " + hi + " à " + lo + ". Enregistrer quand même ? (par exemple pour une partie limitée dans le temps)")) return;
-      m.done = true; rebuild(); save();
-      say(isFinished() ? "Dernier résultat enregistré. Le tournoi est terminé !" : "Résultat enregistré.");
-      render();
-      if (isFinished()) window.scrollTo(0, 0);
+      function commit() {
+        m.done = true; rebuild(); save();
+        say(isFinished() ? "Dernier résultat enregistré. Le tournoi est terminé !" : "Résultat enregistré.");
+        render();
+        if (isFinished()) window.scrollTo(0, 0);
+      }
+      if (hi !== S.target || lo >= S.target) ask("Le score habituel est " + S.target + " à moins de " + S.target + ". Ici, c'est " + hi + " à " + lo + ". Enregistrer quand même ? (par exemple pour une partie limitée dans le temps)", "Enregistrer quand même", commit);
+      else commit();
     },
     edit: function (b) {
-      var f = findMatch(b.dataset.id);
+      var f = findMatch(b.dataset.id), next = null;
       if (!isChamp()) {
-        var next = S.rounds[f.r + 1] && S.rounds[f.r + 1][Math.floor(f.k / 2)];
-        if (next && next.done && !confirm("Attention : modifier ce résultat effacera aussi les résultats des tours suivants qui en dépendent. Continuer ?")) return;
+        next = S.rounds[f.r + 1] && S.rounds[f.r + 1][Math.floor(f.k / 2)];
       }
-      f.m.done = false; rebuild(); save();
-      focusSel = "#s-" + f.m.id + "-a"; render();
+      function doEdit() { f.m.done = false; rebuild(); save(); focusSel = "#s-" + f.m.id + "-a"; render(); }
+      if (next && next.done) ask("Attention : modifier ce résultat effacera aussi les résultats des tours suivants qui en dépendent. Continuer ?", "Modifier le résultat", doEdit);
+      else doEdit();
     },
     print: function () { window.print(); },
     erase: function () {
-      if (!confirm("Effacer définitivement ce tournoi ? Tous les résultats seront perdus.")) return;
-      S = null; save(); say("Le tournoi a été effacé."); go("home");
+      ask("Effacer définitivement ce tournoi ? Tous les résultats seront perdus.", "Effacer le tournoi", function () {
+        S = null; save(); say("Le tournoi a été effacé."); go("home");
+      });
     }
   };
 
